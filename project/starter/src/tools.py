@@ -1,3 +1,8 @@
+"""
+Tool definitions for the agent using @tool decorator
+Think of these as the agent's Swiss Army knife 🔧 - each tool has a specific purpose!
+"""
+
 from typing import Dict, Any, List, Optional, Literal
 from langchain.tools import tool
 from pydantic import BaseModel, Field
@@ -53,6 +58,7 @@ class ToolLogger:
         with open(filepath, 'w') as f:
             json.dump(self.logs, f, indent=2)
 
+
 # TODO: Implement the calculator tool using the @tool decorator.
 # This tool should safely evaluate mathematical expressions and log its usage.
 # Refer to README.md Task 4.1 for detailed implementation requirements.
@@ -68,45 +74,48 @@ def create_document_search_tool(retriever, logger: ToolLogger):
     """
     Creates a document search tool.
     """
-    
+
     @tool
     def document_search(
-        query: str,
-        search_type: Literal["keyword", "type", "amount", "amount_range"] = "keyword",
-        doc_type: Optional[str] = None,
-        min_amount: Optional[float] = None,
-        max_amount: Optional[float] = None,
-        comparison: Optional[Literal["over", "under", "between", "exact", "approximate"]] = None,
-        amount: Optional[float] = None
+            query: str,
+            search_type: Literal["keyword", "type", "amount", "amount_range", "all"] = "keyword",
+            doc_type: Optional[str] = None,
+            min_amount: Optional[float] = None,
+            max_amount: Optional[float] = None,
+            comparison: Optional[Literal["over", "under", "between", "exact", "approximate"]] = None,
+            amount: Optional[float] = None
     ) -> str:
         """
         Search for relevant documents using various criteria. Handles natural language amount queries.
-        
+
         Args:
             query: Search query (e.g., "invoices over $50,000", "contracts", "insurance claims")
-            search_type: Type of search - 'keyword', 'type', 'amount', or 'amount_range'
+            search_type: Type of search - 'keyword', 'type', 'amount', 'amount_range' or 'all'
             doc_type: Document type filter (e.g., 'invoice', 'contract', 'claim')
             min_amount: Minimum amount (for range queries or "over" queries)
             max_amount: Maximum amount (for range queries or "under" queries)
             comparison: Type of amount comparison - 'over', 'under', 'between', 'exact', 'approximate'
             amount: Single amount value for comparisons (used with 'over', 'under', 'exact', 'approximate')
-            
+
         Examples:
             - "Find documents over $50,000" → comparison='over', amount=50000
             - "Show invoices under $10,000" → search_type='type', doc_type='invoice', comparison='under', amount=10000
             - "Documents between $20,000 and $80,000" → min_amount=20000, max_amount=80000
             - "Contracts around $100,000" → comparison='approximate', amount=100000
-            
+
         Returns:
             Formatted search results with document details
         """
         try:
             results = []
-            
+
             # Handle different search types
+            if search_type == "all":
+                results = retriever.retrieve_all()
+
             if search_type == "keyword":
                 results = retriever.retrieve_by_keyword(query)
-                
+
             elif search_type == "type" and doc_type:
                 results = retriever.retrieve_by_type(doc_type)
                 # If amount criteria also specified, filter further
@@ -117,18 +126,19 @@ def create_document_search_tool(retriever, logger: ToolLogger):
                     # Intersect results
                     result_ids = {r.doc_id for r in amount_results}
                     results = [r for r in results if r.doc_id in result_ids]
-                    
+
             elif search_type == "amount" or search_type == "amount_range":
                 results = _handle_amount_search(
                     retriever, comparison, amount, min_amount, max_amount, query
                 )
-                
+
             else:
                 # Try to intelligently parse the query
                 query_lower = query.lower()
-                
+
                 # Check if it's an amount query
-                if any(word in query_lower for word in ['over', 'under', 'above', 'below', 'between', 'around', 'exactly', '$']):
+                if any(word in query_lower for word in
+                       ['over', 'under', 'above', 'below', 'between', 'around', 'exactly', '$']):
                     results = retriever._parse_and_retrieve_by_amount(query)
                 # Check if it's a type query
                 elif any(word in query_lower for word in ['invoice', 'contract', 'claim']):
@@ -139,7 +149,7 @@ def create_document_search_tool(retriever, logger: ToolLogger):
                 else:
                     # Default to keyword search
                     results = retriever.retrieve_by_keyword(query)
-            
+
             # Format results with amount information
             if not results:
                 formatted = "No documents found matching your search criteria."
@@ -149,7 +159,7 @@ def create_document_search_tool(retriever, logger: ToolLogger):
                     formatted += f"Document {i} (ID: {chunk.doc_id}):\n"
                     formatted += f"Title: {chunk.metadata.get('title', 'Unknown')}\n"
                     formatted += f"Type: {chunk.metadata.get('doc_type', 'Unknown')}\n"
-                    
+
                     # Include amount information if available
                     amount_value = None
                     for field in ['total', 'amount', 'value']:
@@ -157,13 +167,13 @@ def create_document_search_tool(retriever, logger: ToolLogger):
                             amount_value = chunk.metadata[field]
                             formatted += f"Amount: ${amount_value:,.2f}\n"
                             break
-                    
+
                     if hasattr(chunk, 'relevance_score'):
                         formatted += f"Relevance Score: {chunk.relevance_score:.2f}\n"
-                    
+
                     formatted += f"Preview: {chunk.content[:200]}...\n"
                     formatted += "-" * 50 + "\n"
-            
+
             # Log the tool use
             logger.log_tool_use(
                 "document_search",
@@ -178,9 +188,9 @@ def create_document_search_tool(retriever, logger: ToolLogger):
                 },
                 {"results_count": len(results)}
             )
-            
+
             return formatted
-            
+
         except Exception as e:
             error_msg = f"Error searching documents: {str(e)}"
             logger.log_tool_use(
@@ -189,7 +199,7 @@ def create_document_search_tool(retriever, logger: ToolLogger):
                 {"error": error_msg}
             )
             return error_msg
-    
+
     def _handle_amount_search(retriever, comparison, amount, min_amount, max_amount, query):
         """Helper function to handle amount-based searches"""
         if comparison:
@@ -203,17 +213,17 @@ def create_document_search_tool(retriever, logger: ToolLogger):
                 return retriever.retrieve_by_approximate_amount(amount)
             elif comparison == "between" and min_amount is not None and max_amount is not None:
                 return retriever.retrieve_by_amount_range(min_amount=min_amount, max_amount=max_amount)
-        
+
         # Handle direct min/max specifications
         if min_amount is not None or max_amount is not None:
             return retriever.retrieve_by_amount_range(min_amount=min_amount, max_amount=max_amount)
-        
+
         # Try parsing from query
         return retriever._parse_and_retrieve_by_amount(query)
-    
+
     # Store helper function as attribute
     document_search._handle_amount_search = _handle_amount_search
-    
+
     return document_search
 
 
@@ -221,15 +231,15 @@ def create_document_reader_tool(retriever, logger: ToolLogger):
     """
     Creates a tool to read full document content.
     """
-    
+
     @tool
     def document_reader(doc_id: str) -> str:
         """
         Read the full content of a specific document by its ID.
-        
+
         Args:
             doc_id: The exact document ID to read (e.g., 'INV-001', 'CON-001')
-            
+
         Returns:
             The full content of the document or an error message if not found
         """
@@ -242,7 +252,7 @@ def create_document_reader_tool(retriever, logger: ToolLogger):
                     if field in doc.metadata:
                         amount_info = f"\nAmount: ${doc.metadata[field]:,.2f}"
                         break
-                
+
                 result = f"Document {doc_id}:{amount_info}\n\n{doc.content}"
                 logger.log_tool_use(
                     "document_reader",
@@ -265,7 +275,7 @@ def create_document_reader_tool(retriever, logger: ToolLogger):
                 {"error": error_msg}
             )
             return error_msg
-    
+
     return document_reader
 
 
@@ -273,41 +283,41 @@ def create_document_statistics_tool(retriever, logger: ToolLogger):
     """
     Creates a tool to get statistics about the document collection.
     """
-    
+
     @tool
     def document_statistics() -> str:
         """
         Get statistics about all documents in the system.
-        
+
         Returns:
             Summary statistics including document counts, amount totals, and averages
         """
         try:
             stats = retriever.get_statistics()
-            
+
             formatted = "DOCUMENT COLLECTION STATISTICS:\n\n"
             formatted += f"Total Documents: {stats['total_documents']}\n"
             formatted += f"Documents with Amounts: {stats['documents_with_amounts']}\n"
             formatted += f"\nDocument Types:\n"
-            
+
             for doc_type, count in stats['document_types'].items():
                 formatted += f"  - {doc_type.capitalize()}: {count}\n"
-            
+
             if stats['documents_with_amounts'] > 0:
                 formatted += f"\nFinancial Summary:\n"
                 formatted += f"  - Total Amount: ${stats['total_amount']:,.2f}\n"
                 formatted += f"  - Average Amount: ${stats['average_amount']:,.2f}\n"
                 formatted += f"  - Minimum Amount: ${stats['min_amount']:,.2f}\n"
                 formatted += f"  - Maximum Amount: ${stats['max_amount']:,.2f}\n"
-            
+
             logger.log_tool_use(
                 "document_statistics",
                 {},
                 {"stats": stats}
             )
-            
+
             return formatted
-            
+
         except Exception as e:
             error_msg = f"Error getting statistics: {str(e)}"
             logger.log_tool_use(
@@ -316,7 +326,7 @@ def create_document_statistics_tool(retriever, logger: ToolLogger):
                 {"error": error_msg}
             )
             return error_msg
-    
+
     return document_statistics
 
 

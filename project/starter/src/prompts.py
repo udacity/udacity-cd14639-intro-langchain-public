@@ -1,15 +1,30 @@
 from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langchain.prompts.chat import SystemMessagePromptTemplate, HumanMessagePromptTemplate
 
-# TODO: Implement the intent classification prompt.
-# This prompt should help the LLM classify user intents into qa, summarization, calculation, or unknown.
-# Refer to README.md Task 3.1 for detailed implementation requirements.
+
 def get_intent_classification_prompt() -> PromptTemplate:
     """
-    Get the intent classification prompt template - TO BE IMPLEMENTED
+    Get the intent classification prompt template.
     """
-    # Your implementation here
-    pass
+    return PromptTemplate(
+        input_variables=["user_input", "conversation_history"],
+        template="""You are an intent classifier for a document processing assistant.
+
+Given the user input and conversation history, classify the user's intent into one of these categories:
+- qa: Questions about documents or records that do not require calculations.
+- summarization: Requests to summarize or extract key points from documents that do not require calculations.
+- calculation: Mathematical operations or numerical computations. Or questions about documents that may require calculations
+- unknown: Cannot determine the intent clearly
+
+User Input: {user_input}
+
+Recent Conversation History:
+{conversation_history}
+
+Analyze the user's request and classify their intent with a confidence score and brief reasoning.
+"""
+    )
+
 
 # Q&A System Prompt
 QA_SYSTEM_PROMPT = """You are a helpful document assistant specializing in answering questions about financial and healthcare documents.
@@ -27,11 +42,9 @@ Guidelines:
 4. Be precise with numbers and dates
 5. Maintain professional tone
 
-Current conversation context:
-{conversation_summary}
 """
 
-# Summarization System Prompt  
+# Summarization System Prompt
 SUMMARIZATION_SYSTEM_PROMPT = """You are an expert document summarizer specializing in financial and healthcare documents.
 
 Your approach:
@@ -45,111 +58,41 @@ Guidelines:
 2. Structure summaries with clear sections
 3. Include document IDs in your summary
 4. Focus on actionable information
-
-Current conversation context:
-{conversation_summary}
 """
 
 # Calculation System Prompt
-CALCULATION_SYSTEM_PROMPT = """You are a precise calculator assistant for document-related computations.
+# TODO: Implement the CALCULATION_SYSTEM_PROMPT. Refer to README.md Task 3.2 for details
+CALCULATION_SYSTEM_PROMPT = """"""
 
-Your responsibilities:
-- Perform accurate calculations
-- Show your work step-by-step
-- Extract numbers from documents when needed
-- Verify calculations
 
-Guidelines:
-1. Search documents for required numbers if not provided
-2. Use the calculator tool for all computations
-3. Explain each calculation step
-4. Include units where applicable
-5. Double-check results for accuracy
-
-Current conversation context:
-{conversation_summary}
-"""
-
-# Agent Decision Prompt
-AGENT_DECISION_PROMPT = PromptTemplate(
-    input_variables=["intent", "user_input", "available_tools"],
-    template="""Based on the classified intent and user input, decide which tools to use and in what order.
-
-Intent: {intent}
-User Input: {user_input}
-Available Tools: {available_tools}
-
-Think step by step:
-1. What information do I need to answer this request?
-2. Which tools will help me get this information?
-3. What order should I use the tools in?
-
-Respond with your reasoning and tool usage plan.
-"""
-)
-
-# Response Formatting Prompts
-QA_RESPONSE_FORMAT = PromptTemplate(
-    input_variables=["question", "answer", "sources", "confidence"],
-    template="""Format the Q&A response:
-
-Question: {question}
-Answer: {answer}
-Sources: {sources}
-Confidence: {confidence}
-
-Provide a natural, conversational response that includes the answer and cites the sources.
-"""
-)
-
-SUMMARY_RESPONSE_FORMAT = PromptTemplate(
-    input_variables=["documents", "key_points", "summary"],
-    template="""Format the summarization response:
-
-Documents Analyzed: {documents}
-Key Points: {key_points}
-Summary: {summary}
-
-Create a well-structured summary that highlights the most important information.
-"""
-)
-
-CALCULATION_RESPONSE_FORMAT = PromptTemplate(
-    input_variables=["expression", "result", "explanation", "sources"],
-    template="""Format the calculation response:
-
-Calculation: {expression}
-Result: {result}
-Step-by-step: {explanation}
-Data Sources: {sources}
-
-Present the calculation clearly with all steps shown.
-"""
-)
-
-# TODO: Implement the chat prompt template function.
-# This function should return appropriate prompts based on the intent type.
-# Refer to README.md Task 3.2 for detailed implementation requirements.
+# TODO: Finish the function to return the correct prompt based on intent type
+# Refer to README.md Task 3.1 for details
 def get_chat_prompt_template(intent_type: str) -> ChatPromptTemplate:
     """
-    Get the appropriate chat prompt template based on intent - TO BE IMPLEMENTED
+    Get the appropriate chat prompt template based on intent.
     """
-    # Your implementation here
-    pass
+    if intent_type == "qa":
+        system_prompt = QA_SYSTEM_PROMPT
+    elif intent_type ==  # TODO:  Check the intent type value
+        system_prompt =  # TODO: Set system prompt to the correct value based on intent type
+    elif intent_type ==  # TODO: Check the intent type value
+    # TODO: Set system prompt to the correct value based on intent type
+    else:
+        system_prompt = QA_SYSTEM_PROMPT  # Default fallback
+
+    return ChatPromptTemplate.from_messages([
+        SystemMessagePromptTemplate.from_template(system_prompt),
+        MessagesPlaceholder("chat_history"),
+        HumanMessagePromptTemplate.from_template("{input}")
+    ])
 
 
 # Memory Summary Prompt
-MEMORY_SUMMARY_PROMPT = PromptTemplate(
-    input_variables=["conversation_history", "max_length"],
-    template="""Summarize the following conversation history into a concise summary (max {max_length} words):
-
-{conversation_history}
+MEMORY_SUMMARY_PROMPT = """Summarize the following conversation history into a concise summary:
 
 Focus on:
 - Key topics discussed
 - Documents referenced
 - Important findings or calculations
 - Any unresolved questions
-
-Summary:"""
-)
+"""
